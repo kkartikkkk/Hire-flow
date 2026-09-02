@@ -1,0 +1,59 @@
+services:
+  # ---- PostgreSQL Database ----
+  postgres:
+    image: postgres:16-alpine
+    container_name: gappeo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gappeo_user
+      POSTGRES_PASSWORD: gappeo_password
+      POSTGRES_DB: gappeo_recruiter
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gappeo_user -d gappeo_recruiter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- FastAPI Backend ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gappeo_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - upload_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ---- React Frontend ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gappeo_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  upload_data:
